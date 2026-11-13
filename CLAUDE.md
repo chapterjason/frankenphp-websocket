@@ -1,0 +1,4 @@
+- Never run git commands.
+- Only read or write inside this project directory. Reading or writing anything outside it (other directories) requires explicit permission for that specific action. Permission covers exactly that one action and nothing else; every further action needs its own permission.
+- Exception: package managers such as npm and composer may use their global caches. This does not count as reading or writing outside the project.
+- Temporary files for tests and experiments go into `.spike/` in this project, never into `/tmp` or any other directory. `.spike/` is disposable and can be deleted at any time: never reference anything inside it from project files, and never assume anything in it still exists after the current action.

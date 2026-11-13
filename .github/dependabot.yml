@@ -1,0 +1,30 @@
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      go:
+        patterns: ["*"]
+    # They move together with the Dockerfile and the CI builder image; see CONTRIBUTING.md.
+    ignore:
+      - dependency-name: github.com/dunglas/frankenphp
+      - dependency-name: github.com/dunglas/frankenphp/caddy
+      - dependency-name: github.com/caddyserver/caddy/v2
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: docker-compose
+    directory: /e2e
+    schedule:
+      interval: weekly
+    # It moves together with @playwright/test; see CONTRIBUTING.md.
+    ignore:
+      - dependency-name: mcr.microsoft.com/playwright

@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    # FrankenPHP's builder image brings a ZTS libphp with php-config and the Go version FrankenPHP needs.
+    # Its tag must match the FrankenPHP version in go.mod.
+    container: dunglas/frankenphp:1.13.5-builder-php8.5
+    env:
+      TAGS: nobadger,nomysql,nopgx,nowatcher,deprecated_topic,deprecated_claim
+      GOLANGCI_LINT_VERSION: v2.15.0
+      GOPATH: /root/go
+      GOCACHE: /root/.cache/go-build
+      GOLANGCI_LINT_CACHE: /root/.cache/golangci-lint
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/cache@v6
+        with:
+          path: |
+            /root/go/pkg/mod
+            /root/.cache/go-build
+            /root/.cache/golangci-lint
+            /root/go/bin
+          key: test-${{ hashFiles('go.sum', '.github/workflows/ci.yml') }}
+          restore-keys: test-
+      - name: cgo flags from php-config
+        run: |
+          echo "CGO_ENABLED=1" >> "$GITHUB_ENV"
+          echo "CGO_CFLAGS=$(php-config --includes)" >> "$GITHUB_ENV"
+          echo "CGO_LDFLAGS=$(php-config --ldflags) $(php-config --libs)" >> "$GITHUB_ENV"
+      - name: gofmt
+        run: |
+          unformatted="$(find . -name '*.go' -not -path './.*' -exec gofmt -l {} +)"
+          if [ -n "$unformatted" ]; then echo "not gofmt-ed:"; echo "$unformatted"; exit 1; fi
+      - run: go vet -tags=$TAGS,e2e ./...
+      # Built without cgo, which golangci-lint does not need and PHP's linker flags would break.
+      - run: CGO_ENABLED=0 go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$GOLANGCI_LINT_VERSION
+      - run: /root/go/bin/golangci-lint run ./...
+      - run: go test -race -ldflags=-linkmode=external -tags=$TAGS ./...
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - uses: docker/setup-buildx-action@v4
+      # Builds the image with GitHub's cache; the compose build then reuses its layers.
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          tags: frankenphp-websocket:e2e
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - run: docker compose -f e2e/compose.yaml up --build --detach app other relay edge remote
+      - run: CGO_ENABLED=0 go test -count=1 -tags=e2e ./e2e/
+      - run: docker compose -f e2e/compose.yaml --profile browser run --rm browser
+      - if: always()
+        run: docker compose -f e2e/compose.yaml --profile browser down --volumes
+
+  publish:
+    needs: [test, e2e]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: chapterjason/frankenphp-websocket:${{ startsWith(github.ref, 'refs/tags/v') && 'latest' || 'edge' }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

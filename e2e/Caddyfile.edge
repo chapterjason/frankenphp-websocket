@@ -1,0 +1,25 @@
+{
+	admin off
+	local_certs
+	skip_install_trust
+	auto_https disable_redirects
+
+	uplink {
+		connect relay:7071
+		secret {env.CLUSTER_SECRET}
+	}
+
+	cluster member {
+		worker cluster-worker.php 1
+	}
+}
+
+localhost, edge {
+	root public
+
+	websocket /ws {
+		worker worker.php 2
+	}
+
+	php_server
+}

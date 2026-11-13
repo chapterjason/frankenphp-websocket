@@ -1,0 +1,81 @@
+# A cluster built from this repository, for the end-to-end tests: app and other
+# are a mesh, edge and remote reach everyone through the relay.
+services:
+  app:
+    build: ..
+    image: frankenphp-websocket:e2e
+    command: frankenphp run --config /etc/e2e/Caddyfile.app --adapter caddyfile
+    environment:
+      GODEBUG: http2xconnect=1
+      CLUSTER_SECRET: e2e-cluster-secret
+    volumes:
+      - ./:/etc/e2e:ro,z
+      - ./app:/app:ro,z
+    working_dir: /app
+    ports:
+      - "18443:443"
+      - "18443:443/udp"
+      - "18080:8080"
+
+  other:
+    build: ..
+    image: frankenphp-websocket:e2e
+    command: frankenphp run --config /etc/e2e/Caddyfile.other --adapter caddyfile
+    environment:
+      CLUSTER_SECRET: e2e-cluster-secret
+    volumes:
+      - ./:/etc/e2e:ro,z
+      - ./app:/app:ro,z
+    working_dir: /app
+    ports:
+      - "19443:443"
+    depends_on:
+      - app
+
+  relay:
+    build: ..
+    image: frankenphp-websocket:e2e
+    command: frankenphp run --config /etc/e2e/Caddyfile.relay --adapter caddyfile
+    environment:
+      CLUSTER_SECRET: e2e-cluster-secret
+    volumes:
+      - ./:/etc/e2e:ro,z
+
+  edge:
+    build: ..
+    image: frankenphp-websocket:e2e
+    command: frankenphp run --config /etc/e2e/Caddyfile.edge --adapter caddyfile
+    environment:
+      CLUSTER_SECRET: e2e-cluster-secret
+    volumes:
+      - ./:/etc/e2e:ro,z
+      - ./app:/app:ro,z
+    working_dir: /app
+    ports:
+      - "20443:443"
+
+  remote:
+    build: ..
+    image: frankenphp-websocket:e2e
+    command: frankenphp run --config /etc/e2e/Caddyfile.remote --adapter caddyfile
+    environment:
+      CLUSTER_SECRET: e2e-cluster-secret
+    volumes:
+      - ./:/etc/e2e:ro,z
+      - ./app:/app:ro,z
+    working_dir: /app
+    ports:
+      - "21443:443"
+
+  browser:
+    image: mcr.microsoft.com/playwright:v1.65.1-noble
+    profiles: ["browser"]
+    working_dir: /e2e/browser
+    command: sh -c "npm install --no-audit --no-fund --no-package-lock && npx playwright test"
+    environment:
+      WEBSOCKET_ORIGIN: https://app
+    volumes:
+      - ./browser:/e2e/browser:z
+      - /e2e/browser/node_modules
+    depends_on:
+      - app

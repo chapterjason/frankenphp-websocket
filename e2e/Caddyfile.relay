@@ -1,0 +1,8 @@
+{
+	admin off
+
+	cluster relay {
+		listen :7071
+		secret {env.CLUSTER_SECRET}
+	}
+}

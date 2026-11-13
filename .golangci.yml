@@ -1,0 +1,25 @@
+version: "2"
+
+run:
+  build-tags:
+    - nobadger
+    - nomysql
+    - nopgx
+    - nowatcher
+    - deprecated_topic
+    - deprecated_claim
+    - e2e
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - errorlint
+    - misspell
+    - nolintlint
+  exclusions:
+    generated: lax
+
+formatters:
+  enable:
+    - gofmt
