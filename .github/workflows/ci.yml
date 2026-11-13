@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    # FrankenPHP's builder image brings a ZTS libphp with php-config and the Go version FrankenPHP needs.
+    # Its tag must match the FrankenPHP version in go.mod.
+    container: dunglas/frankenphp:1.13.5-builder-php8.5
+    steps:
+      - uses: actions/checkout@v7
+      - run: make check
+      - run: make lint
+      - run: make test
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - run: make e2e
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
